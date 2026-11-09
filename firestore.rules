@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validOccurrenceCreate() {
+      return request.resource.data.keys().hasAll([
+          'titulo', 'local', 'descricao', 'autorId', 'autorNome',
+          'resolvido', 'criadoEm'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'titulo', 'local', 'descricao', 'autorId', 'autorNome',
+          'resolvido', 'criadoEm'
+        ])
+        && request.resource.data.autorId == request.auth.uid
+        && request.resource.data.autorNome is string
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0
+        && request.resource.data.local is string
+        && request.resource.data.local.size() > 0
+        && request.resource.data.descricao is string
+        && request.resource.data.resolvido == false
+        && request.resource.data.criadoEm is timestamp;
+    }
+
+    match /ocorrencias/{ocorrenciaId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validOccurrenceCreate();
+      allow update: if signedIn()
+        && resource.data.autorId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['resolvido'])
+        && request.resource.data.resolvido is bool;
+      allow delete: if false;
+
+      match /pistas/{pistaId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.keys().hasAll([
+            'mensagem', 'autorId', 'autorNome', 'criadoEm'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'mensagem', 'autorId', 'autorNome', 'criadoEm'
+          ])
+          && request.resource.data.autorId == request.auth.uid
+          && request.resource.data.autorNome is string
+          && request.resource.data.mensagem is string
+          && request.resource.data.mensagem.size() > 0
+          && request.resource.data.criadoEm is timestamp;
+        allow update, delete: if false;
+      }
+    }
+  }
+}
